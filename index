@@ -17,7 +17,6 @@
   </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-
 <header id="mainHeader" class="flex justify-between items-center p-4 bg-white border-b shadow sticky top-0 z-50 hidden">
   <h1 class="text-xl font-bold">🏗️ Renovation Estimator</h1>
   <div class="flex gap-2">
@@ -93,7 +92,6 @@
     <div id="summaryOutput" class="text-sm text-gray-600">Loading...</div>
   </section>
 </main>
-
 <script>
 let walls = [];
 let currentPage = 'home';
@@ -249,4 +247,3 @@ showPage();
 </script>
 </body>
 </html>
-
