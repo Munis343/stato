@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Renovation Estimator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .grid-button {
+      @apply flex flex-col justify-center items-center bg-white border border-gray-300 text-gray-800 text-center font-medium text-sm rounded-lg shadow-md p-6 hover:bg-blue-50 transition;
+    }
+    .grid-button span { @apply mt-2; }
+    .section { @apply max-w-5xl mx-auto bg-white p-6 rounded-lg shadow space-y-4; }
+    .input { @apply w-full p-2 border border-gray-300 rounded; }
+    .btn { @apply bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+<header id="mainHeader" class="flex justify-between items-center p-4 bg-white border-b shadow sticky top-0 z-50 hidden">
+  <h1 class="text-xl font-bold">🏗️ Renovation Estimator</h1>
+  <div class="flex gap-2">
+    <button onclick="goHome()" class="btn">🏠 Home</button>
+    <button onclick="goTo('newProject')" class="btn">➕ New Project</button>
+    <button onclick="goTo('myProjects')" class="btn">📁 My Projects</button>
+  </div>
+</header>
+
+<main id="app" class="p-6 space-y-10 max-w-6xl mx-auto">
+  <!-- HOME GRID -->
+  <section id="homePage" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+    <button onclick="goTo('newProject')" class="grid-button"><div class="text-3xl">➕</div><span>New Project</span></button>
+    <button onclick="goTo('myProjects')" class="grid-button"><div class="text-3xl">📁</div><span>My Projects</span></button>
+    <button onclick="goTo('summary')" class="grid-button"><div class="text-3xl">📊</div><span>Summary</span></button>
+    <button onclick="goToTrade('painting')" class="grid-button"><div class="text-3xl">🎨</div><span>Painting</span></button>
+  </section>
+
+  <!-- NEW PROJECT -->
+  <section id="newProjectPage" class="section hidden">
+    <h2 class="text-xl font-semibold">➕ New Project</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <input id="projName" class="input" placeholder="Project Name" />
+      <input id="projClient" class="input" placeholder="Client Name" />
+      <input id="projAddress" class="input md:col-span-2" placeholder="Address" />
+      <input type="date" id="projStart" class="input" />
+      <input type="date" id="projEnd" class="input" />
+      <input type="number" id="projBudget" class="input" placeholder="Estimated Budget" />
+    </div>
+    <div class="mt-4">
+      <label class="font-semibold block">Trades:</label>
+      <label><input type="checkbox" value="painting" class="mr-2" /> 🎨 Painting</label>
+    </div>
+    <div class="mt-4">
+      <label class="block font-semibold">Notes:</label>
+      <textarea id="projNotes" class="input" rows="4"></textarea>
+    </div>
+    <button onclick="saveNewProject()" class="btn mt-4">💾 Save Project</button>
+  </section>
+
+  <!-- MY PROJECTS -->
+  <section id="myProjectsPage" class="section hidden">
+    <h2 class="text-xl font-semibold">📁 My Projects</h2>
+    <div id="projectsList" class="space-y-4"></div>
+  </section>
+
+  <!-- PAINTING MODULE -->
+  <section id="paintingPage" class="section hidden">
+    <h2 class="text-xl font-semibold">🎨 Painting</h2>
+    <div class="grid grid-cols-2 gap-2">
+      <input id="wallWidth" class="input" type="number" step="any" placeholder="Wall Width (m)" />
+      <input id="wallHeight" class="input" type="number" step="any" placeholder="Wall Height (m)" />
+    </div>
+    <button onclick="addWall()" class="btn mt-2">➕ Add Wall</button>
+    <div>
+      <label class="font-semibold block mt-4">Coats:</label>
+      <input id="paintCoats" type="number" class="input" value="2" />
+    </div>
+    <div>
+      <label class="font-semibold block mt-4">Paint Coverage (m²/L):</label>
+      <input id="paintCoverage" type="number" step="any" class="input" value="10" />
+    </div>
+    <ul id="wallsList" class="list-disc list-inside text-sm text-gray-600 mt-4"></ul>
+    <div class="mt-4 text-lg">
+      🧴 Total Paint: <strong id="paintTotal">0</strong> L
+    </div>
+    <button onclick="savePaintingData()" class="btn mt-4">💾 Save to Project</button>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summaryPage" class="section hidden">
+    <h2 class="text-xl font-semibold">📊 Summary</h2>
+    <div id="summaryOutput" class="text-sm text-gray-600">Loading...</div>
+  </section>
+</main>
+
+<script>
+let walls = [];
+let currentPage = 'home';
+let projects = JSON.parse(localStorage.getItem('projects') || '[]');
+let currentProjectId = null;
+
+function goTo(page) {
+  currentPage = page;
+  showPage();
+}
+function goHome() {
+  currentPage = 'home';
+  currentProjectId = null;
+  showPage();
+}
+function showPage() {
+  const pages = ['homePage', 'newProjectPage', 'myProjectsPage', 'paintingPage', 'summaryPage'];
+  pages.forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById(`${currentPage}Page`).classList.remove('hidden');
+  document.getElementById('mainHeader').classList.toggle('hidden', currentPage === 'home');
+  if (currentPage === 'myProjects') renderProjectsList();
+  if (currentPage === 'summary') renderSummary();
+  if (currentPage === 'painting') renderWalls();
+}
+
+function saveNewProject() {
+  const name = document.getElementById('projName').value.trim();
+  if (!name) return alert('Enter a project name.');
+  const newProj = {
+    id: Date.now(),
+    name,
+    client: document.getElementById('projClient').value,
+    address: document.getElementById('projAddress').value,
+    start: document.getElementById('projStart').value,
+    end: document.getElementById('projEnd').value,
+    budget: document.getElementById('projBudget').value,
+    notes: document.getElementById('projNotes').value,
+    trades: {},
+    selectedTrades: Array.from(document.querySelectorAll('#newProjectPage input[type=checkbox]:checked')).map(c => c.value)
+  };
+  projects.push(newProj);
+  localStorage.setItem('projects', JSON.stringify(projects));
+  currentProjectId = newProj.id;
+  goTo('myProjects');
+}
+
+function renderProjectsList() {
+  const container = document.getElementById('projectsList');
+  container.innerHTML = '';
+  projects.forEach(p => {
+    const div = document.createElement('div');
+    div.className = "p-4 border rounded shadow flex justify-between items-center";
+    div.innerHTML = `
+      <div>
+        <div class="font-bold">${p.name}</div>
+        <div class="text-sm text-gray-500">${p.client} | ${p.address}</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn" onclick="openProject(${p.id})">Open</button>
+        <button class="btn bg-red-500 hover:bg-red-600" onclick="deleteProject(${p.id})">Delete</button>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+function openProject(id) {
+  currentProjectId = id;
+  const p = projects.find(p => p.id === id);
+  if (p.selectedTrades.includes('painting')) {
+    goTo('painting');
+  } else {
+    alert("No Painting trade selected in this project.");
+  }
+}
+
+function deleteProject(id) {
+  if (!confirm("Delete this project?")) return;
+  projects = projects.filter(p => p.id !== id);
+  localStorage.setItem('projects', JSON.stringify(projects));
+  renderProjectsList();
+}
+
+function addWall() {
+  const width = parseFloat(document.getElementById('wallWidth').value);
+  const height = parseFloat(document.getElementById('wallHeight').value);
+  if (!width || !height) return alert("Enter valid width and height.");
+  walls.push({ width, height });
+  renderWalls();
+  calculatePaint();
+}
+
+function renderWalls() {
+  const list = document.getElementById('wallsList');
+  list.innerHTML = '';
+  walls.forEach((w, i) => {
+    const li = document.createElement('li');
+    li.textContent = `Wall ${i + 1}: ${w.width}m × ${w.height}m = ${(w.width * w.height).toFixed(2)} m²`;
+    list.appendChild(li);
+  });
+}
+
+function calculatePaint() {
+  const area = walls.reduce((sum, w) => sum + w.width * w.height, 0);
+  const coats = parseInt(document.getElementById('paintCoats').value) || 1;
+  const coverage = parseFloat(document.getElementById('paintCoverage').value) || 10;
+  const total = (area * coats) / coverage;
+  document.getElementById('paintTotal').textContent = total.toFixed(2);
+}
+
+function savePaintingData() {
+  if (!currentProjectId) return alert("No project selected.");
+  const p = projects.find(p => p.id === currentProjectId);
+  if (!p.trades.painting) p.trades.painting = {};
+  p.trades.painting.walls = walls;
+  p.trades.painting.coats = document.getElementById('paintCoats').value;
+  p.trades.painting.coverage = document.getElementById('paintCoverage').value;
+  localStorage.setItem('projects', JSON.stringify(projects));
+  alert("Painting data saved.");
+}
+
+function goToTrade(tradeName) {
+  goTo(tradeName);
+}
+
+function renderSummary() {
+  const container = document.getElementById('summaryOutput');
+  if (!currentProjectId) {
+    container.innerHTML = "No project selected.";
+    return;
+  }
+  const proj = projects.find(p => p.id === currentProjectId);
+  let html = `<div><strong>Project:</strong> ${proj.name}</div>`;
+  if (proj.trades.painting) {
+    const area = proj.trades.painting.walls.reduce((sum, w) => sum + w.width * w.height, 0);
+    const coats = proj.trades.painting.coats || 1;
+    const coverage = proj.trades.painting.coverage || 10;
+    const totalPaint = (area * coats) / coverage;
+    html += `
+      <hr class="my-2" />
+      <div><strong>🎨 Painting</strong></div>
+      <div>Total Area: ${area.toFixed(2)} m²</div>
+      <div>Coats: ${coats}</div>
+      <div>Coverage: ${coverage} m²/L</div>
+      <div><strong>Total Paint:</strong> ${totalPaint.toFixed(2)} L</div>
+    `;
+  } else {
+    html += `<div>No painting data found.</div>`;
+  }
+  container.innerHTML = html;
+}
+
+showPage();
+</script>
+</body>
+</html>
